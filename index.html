@@ -1,0 +1,1081 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>佛经打卡排行榜 - 共修精进</title>
+    <!-- Tailwind CSS v3 -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Font Awesome -->
+    <link href="https://cdn.jsdelivr.net/npm/font-awesome@4.7.0/css/font-awesome.min.css" rel="stylesheet">
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js"></script>
+    <!-- 自定义 Tailwind 配置 -->
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#9D2932', // 深红色
+                        secondary: '#E6B54A', // 金色
+                        neutral: '#F5F0E6', // 浅米色
+                        dark: '#333333', // 深灰色
+                    },
+                    fontFamily: {
+                        sans: ['Arial', 'sans-serif'],
+                        serif: ['SimSun', 'serif'],
+                    }
+                }
+            }
+        }
+    </script>
+    <style type="text/tailwindcss">
+        @layer utilities {
+            .text-shadow {
+                text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.3);
+            }
+            .bg-opacity-80 {
+                background-opacity: 0.8;
+            }
+            .btn {
+                transition: all 0.3s ease;
+            }
+            .btn:hover {
+                transform: translateY(-2px);
+                box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+            }
+            .btn:active {
+                transform: translateY(0);
+            }
+        }
+    </style>
+    <style>
+        body {
+            background-color: #F5F0E6;
+            background-image: url('https://p5-flow-imagex-sign.byteimg.com/tos-cn-i-a9rns2rl98/rc/pc/super_tool/87b2c0f021524f9d80287d9244e1d6a3~tplv-a9rns2rl98-image.image?lk3s=8e244e95&rcl=2026013020540417CCFA201E3F66319CCB&rrcfp=f06b921b&x-expires=1772369663&x-signature=Tal%2F7DAFzAgMKgWj3oxWnqXN7HI%3D');
+            background-size: cover;
+            background-position: center;
+            background-attachment: fixed;
+            background-blend-mode: overlay;
+        }
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            overflow: auto;
+            background-color: rgba(0,0,0,0.5);
+        }
+        .modal-content {
+            background-color: #F5F0E6;
+            margin: 10% auto;
+            padding: 20px;
+            border: 1px solid #888;
+            width: 80%;
+            max-width: 500px;
+            border-radius: 8px;
+            box-shadow: 0 4px 8px 0 rgba(0,0,0,0.2),0 6px 20px 0 rgba(0,0,0,0.19);
+            animation-name: animatetop;
+            animation-duration: 0.4s
+        }
+        @keyframes animatetop {
+            from {top: -300px; opacity: 0}
+            to {top: 0; opacity: 1}
+        }
+        .fade-in {
+            animation: fadeIn 0.5s ease-in-out;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+    </style>
+</head>
+<body class="min-h-screen">
+    <!-- 头部 -->
+    <header class="bg-primary bg-opacity-90 text-white shadow-md">
+        <div class="container mx-auto px-4 py-4">
+            <div class="flex flex-col md:flex-row justify-between items-center">
+                <div class="text-center md:text-left mb-4 md:mb-0">
+                    <h1 class="text-2xl md:text-3xl font-bold text-shadow">
+                        <i class="fa fa-book mr-2"></i>佛经打卡排行榜
+                    </h1>
+                    <p class="text-sm md:text-base text-secondary mt-1">共修精进，功德无量</p>
+                </div>
+                <div class="flex flex-col md:flex-row items-center space-y-2 md:space-y-0 md:space-x-4">
+                    <div id="current-date" class="text-sm md:text-base font-medium">
+                        2024年1月1日 星期一
+                    </div>
+                    <div id="user-info" class="flex items-center space-x-2">
+                        <span class="text-white font-medium">欢迎，</span>
+                        <span id="current-user-name" class="text-white font-bold cursor-pointer hover:text-secondary transition-colors">请登录</span>
+                        <button id="logout-btn" class="px-2 py-1 bg-white bg-opacity-20 text-white rounded hover:bg-opacity-30 transition-colors btn">
+                            <i class="fa fa-sign-out"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- 导航 -->
+    <nav class="bg-white bg-opacity-90 shadow-sm">
+        <div class="container mx-auto px-4">
+            <div class="flex flex-col md:flex-row justify-center md:justify-between items-center py-3">
+                <div class="flex space-x-2 md:space-x-4 mb-3 md:mb-0">
+                    <button id="daily-ranking-btn" class="px-4 py-2 bg-primary text-white rounded-md hover:bg-opacity-90 transition-colors btn">
+                        <i class="fa fa-calendar mr-1"></i>今日排行
+                    </button>
+                    <button id="total-ranking-btn" class="px-4 py-2 bg-white text-primary border border-primary rounded-md hover:bg-gray-100 transition-colors btn">
+                        <i class="fa fa-trophy mr-1"></i>总排行
+                    </button>
+                </div>
+                <div class="flex space-x-2">
+                    <button id="refresh-ranking-btn" class="px-3 py-2 bg-secondary text-white rounded-md hover:bg-opacity-90 transition-colors btn">
+                        <i class="fa fa-refresh mr-1"></i>刷新
+                    </button>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- 主要内容 -->
+    <main class="container mx-auto px-4 py-6">
+        <!-- 操作按钮区域 -->
+        <div class="flex flex-col md:flex-row justify-center space-y-4 md:space-y-0 md:space-x-6 mb-6">
+            <button id="buddha-counter-btn" class="px-8 py-4 bg-primary text-white rounded-full text-xl font-bold hover:bg-opacity-90 transition-colors btn shadow-lg">
+                <i class="fa fa-plus-circle mr-2"></i>佛号打卡
+            </button>
+            <button id="quick-checkin-btn" class="px-8 py-4 bg-secondary text-white rounded-full text-xl font-bold hover:bg-opacity-90 transition-colors btn shadow-lg">
+                <i class="fa fa-book mr-2"></i>经文打卡
+            </button>
+        </div>
+
+        <!-- 排行榜 -->
+        <div class="bg-white bg-opacity-90 rounded-lg shadow-lg p-6 mb-6">
+            <h2 class="text-2xl font-bold text-primary mb-4 text-center">
+                <i class="fa fa-list-ol mr-2"></i><span id="ranking-title">今日修行排行榜</span>
+            </h2>
+            <div class="overflow-x-auto">
+                <table class="w-full table-auto">
+                    <thead>
+                        <tr class="bg-primary bg-opacity-10">
+                            <th class="px-4 py-3 text-left text-primary font-semibold">排名</th>
+                            <th class="px-4 py-3 text-left text-primary font-semibold">修行者</th>
+                            <th class="px-4 py-3 text-left text-primary font-semibold">阿弥陀经</th>
+                            <th class="px-4 py-3 text-left text-primary font-semibold">地藏经</th>
+                            <th class="px-4 py-3 text-left text-primary font-semibold">普门品</th>
+                            <th class="px-4 py-3 text-left text-primary font-semibold">心经</th>
+                            <th class="px-4 py-3 text-left text-primary font-semibold">佛号</th>
+                            <th class="px-4 py-3 text-left text-primary font-semibold">总计</th>
+                            <th class="px-4 py-3 text-left text-primary font-semibold">操作</th>
+                        </tr>
+                    </thead>
+                    <tbody id="ranking-body">
+                        <tr>
+                            <td colspan="9" class="px-4 py-8 text-center text-gray-500">
+                                <i class="fa fa-spinner fa-spin mr-2"></i>加载中...
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+            <div class="mt-4 text-center">
+                <button id="load-more-btn" class="px-6 py-2 bg-secondary text-white rounded-md hover:bg-opacity-90 transition-colors btn">
+                    <i class="fa fa-refresh mr-1"></i>加载更多
+                </button>
+            </div>
+        </div>
+
+    </main>
+
+    <!-- 页脚 -->
+    <footer class="bg-primary bg-opacity-90 text-white py-6">
+        <div class="container mx-auto px-4 text-center">
+            <p class="mb-2">愿以此功德，庄严佛净土</p>
+            <p class="mb-2">上报四重恩，下济三途苦</p>
+            <p class="text-sm text-secondary">佛经打卡排行榜 · 共修精进平台</p>
+        </div>
+    </footer>
+
+    <!-- 登录模态框 -->
+    <div id="login-modal" class="modal">
+        <div class="modal-content">
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="text-xl font-bold text-primary">
+                    <i class="fa fa-user-circle mr-2"></i>登录 / 注册
+                </h3>
+                <button id="close-login-modal-btn" class="text-gray-500 hover:text-gray-700 text-xl">
+                    <i class="fa fa-times"></i>
+                </button>
+            </div>
+            <div class="mb-4">
+                <label for="user-name-input" class="block text-gray-700 font-medium mb-2">请输入您的修行名称：</label>
+                <input type="text" id="user-name-input" class="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary" placeholder="例如：慈悲心、精进者、念佛人" maxlength="20">
+            </div>
+            <div class="flex space-x-2">
+                <button id="login-submit-btn" class="flex-1 px-4 py-2 bg-primary text-white rounded-md hover:bg-opacity-90 transition-colors btn">
+                    <i class="fa fa-sign-in mr-1"></i>登录
+                </button>
+                <button id="create-user-btn" class="flex-1 px-4 py-2 bg-secondary text-white rounded-md hover:bg-opacity-90 transition-colors btn">
+                    <i class="fa fa-user-plus mr-1"></i>创建新用户
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 打卡模态框 -->
+    <div id="checkin-modal" class="modal">
+        <div class="modal-content">
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="text-xl font-bold text-primary">
+                    <i class="fa fa-check-circle mr-2"></i>今日修行打卡
+                </h3>
+                <button id="close-modal-btn" class="text-gray-500 hover:text-gray-700 text-xl">
+                    <i class="fa fa-times"></i>
+                </button>
+            </div>
+            <div id="checkin-user-name" class="text-lg font-semibold text-center mb-4">为 慈悲心 打卡</div>
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-gray-700 font-medium mb-2">阿弥陀经</label>
+                    <div class="flex items-center">
+                        <button class="px-3 py-1 bg-gray-200 rounded-l-md hover:bg-gray-300 transition-colors btn" onclick="updateCount('amitabha', -1)">-</button>
+                        <input type="number" id="amitabha-count" class="w-20 px-4 py-2 text-center border-t border-b border-gray-300 focus:outline-none" value="0" min="0">
+                        <button class="px-3 py-1 bg-gray-200 rounded-r-md hover:bg-gray-300 transition-colors btn" onclick="updateCount('amitabha', 1)">+</button>
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-gray-700 font-medium mb-2">地藏经</label>
+                    <div class="flex items-center">
+                        <button class="px-3 py-1 bg-gray-200 rounded-l-md hover:bg-gray-300 transition-colors btn" onclick="updateCount('dizang', -1)">-</button>
+                        <input type="number" id="dizang-count" class="w-20 px-4 py-2 text-center border-t border-b border-gray-300 focus:outline-none" value="0" min="0">
+                        <button class="px-3 py-1 bg-gray-200 rounded-r-md hover:bg-gray-300 transition-colors btn" onclick="updateCount('dizang', 1)">+</button>
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-gray-700 font-medium mb-2">普门品</label>
+                    <div class="flex items-center">
+                        <button class="px-3 py-1 bg-gray-200 rounded-l-md hover:bg-gray-300 transition-colors btn" onclick="updateCount('pumen', -1)">-</button>
+                        <input type="number" id="pumen-count" class="w-20 px-4 py-2 text-center border-t border-b border-gray-300 focus:outline-none" value="0" min="0">
+                        <button class="px-3 py-1 bg-gray-200 rounded-r-md hover:bg-gray-300 transition-colors btn" onclick="updateCount('pumen', 1)">+</button>
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-gray-700 font-medium mb-2">心经</label>
+                    <div class="flex items-center">
+                        <button class="px-3 py-1 bg-gray-200 rounded-l-md hover:bg-gray-300 transition-colors btn" onclick="updateCount('xinjing', -1)">-</button>
+                        <input type="number" id="xinjing-count" class="w-20 px-4 py-2 text-center border-t border-b border-gray-300 focus:outline-none" value="0" min="0">
+                        <button class="px-3 py-1 bg-gray-200 rounded-r-md hover:bg-gray-300 transition-colors btn" onclick="updateCount('xinjing', 1)">+</button>
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-gray-700 font-medium mb-2">佛号</label>
+                    <div class="flex items-center">
+                        <button class="px-3 py-1 bg-gray-200 rounded-l-md hover:bg-gray-300 transition-colors btn" onclick="updateCount('buddha', -1)">-</button>
+                        <input type="number" id="buddha-count" class="w-20 px-4 py-2 text-center border-t border-b border-gray-300 focus:outline-none" value="0" min="0">
+                        <button class="px-3 py-1 bg-gray-200 rounded-r-md hover:bg-gray-300 transition-colors btn" onclick="updateCount('buddha', 1)">+</button>
+                    </div>
+                </div>
+            </div>
+            <div class="mt-6 text-center">
+                <button id="submit-checkin-btn" class="px-8 py-3 bg-primary text-white rounded-md hover:bg-opacity-90 transition-colors btn text-lg font-semibold">
+                    <i class="fa fa-check mr-2"></i>确认打卡
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 累积佛号模态框 -->
+    <div id="buddha-counter-modal" class="modal">
+        <div class="modal-content">
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="text-xl font-bold text-primary">
+                    <i class="fa fa-plus-circle mr-2"></i>佛号打卡
+                </h3>
+                <button id="close-buddha-modal-btn" class="text-gray-500 hover:text-gray-700 text-xl">
+                    <i class="fa fa-times"></i>
+                </button>
+            </div>
+            <div class="text-center mb-6">
+                <p class="text-lg text-gray-700 mb-2">当前累计佛号：</p>
+                <p id="total-buddha-count" class="text-4xl font-bold text-primary">0</p>
+            </div>
+            <div class="space-y-4">
+                <div class="text-center">
+                    <label class="block text-gray-700 font-medium mb-2">今日新增佛号</label>
+                    <div class="flex items-center justify-center">
+                        <button class="px-4 py-2 bg-gray-200 rounded-l-md hover:bg-gray-300 transition-colors btn text-lg" onclick="updateBuddhaCount(-10)">-10</button>
+                        <button class="px-4 py-2 bg-gray-200 hover:bg-gray-300 transition-colors btn text-lg" onclick="updateBuddhaCount(-1)">-1</button>
+                        <input type="number" id="buddha-counter-input" class="w-24 px-4 py-2 text-center border-t border-b border-gray-300 focus:outline-none text-lg" value="0" min="0">
+                        <button class="px-4 py-2 bg-gray-200 hover:bg-gray-300 transition-colors btn text-lg" onclick="updateBuddhaCount(1)">+1</button>
+                        <button class="px-4 py-2 bg-gray-200 rounded-r-md hover:bg-gray-300 transition-colors btn text-lg" onclick="updateBuddhaCount(10)">+10</button>
+                    </div>
+                </div>
+            </div>
+            <div class="mt-6 text-center">
+                <button id="submit-buddha-count-btn" class="px-8 py-3 bg-primary text-white rounded-md hover:bg-opacity-90 transition-colors btn text-lg font-semibold">
+                    <i class="fa fa-plus mr-2"></i>添加佛号
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast 提示 -->
+    <div id="toast" class="fixed bottom-4 right-4 bg-dark text-white px-6 py-3 rounded-md shadow-lg transform translate-y-20 opacity-0 transition-all duration-300">
+        <span id="toast-message">操作成功</span>
+    </div>
+
+    <script>
+        // Firebase配置 - 使用简化的配置
+        const firebaseConfig = {
+            apiKey: "AIzaSyC5aT1K8yQ8zLz8X5Q2Z6W7V9B3N4M5K6J",
+            authDomain: "buddhist-scriptures.firebaseapp.com",
+            databaseURL: "https://buddhist-scriptures-default-rtdb.firebaseio.com",
+            projectId: "buddhist-scriptures",
+            storageBucket: "buddhist-scriptures.appspot.com",
+            messagingSenderId: "123456789012",
+            appId: "1:123456789012:web:abcdef1234567890abcdef"
+        };
+
+        // 初始化Firebase
+        let app, database;
+        try {
+            app = firebase.initializeApp(firebaseConfig);
+            database = firebase.database();
+            console.log('Firebase initialized successfully');
+        } catch (error) {
+            console.warn('Firebase initialization failed:', error);
+            console.log('Using fallback data storage');
+        }
+
+        // 全局变量
+        let users = [];
+        let currentUser = null;
+        let currentRankingType = 'daily';
+        let currentPage = 1;
+        const itemsPerPage = 10;
+
+        // DOM 元素
+        const currentDateEl = document.getElementById('current-date');
+        const currentUserNameEl = document.getElementById('current-user-name');
+        const logoutBtn = document.getElementById('logout-btn');
+        const dailyRankingBtn = document.getElementById('daily-ranking-btn');
+        const totalRankingBtn = document.getElementById('total-ranking-btn');
+        const refreshRankingBtn = document.getElementById('refresh-ranking-btn');
+        const rankingTitle = document.getElementById('ranking-title');
+        const rankingBody = document.getElementById('ranking-body');
+        const loadMoreBtn = document.getElementById('load-more-btn');
+        const buddhaCounterBtn = document.getElementById('buddha-counter-btn');
+        
+        // 模态框元素
+        const loginModal = document.getElementById('login-modal');
+        const closeLoginModalBtn = document.getElementById('close-login-modal-btn');
+        const userNameInput = document.getElementById('user-name-input');
+        const loginSubmitBtn = document.getElementById('login-submit-btn');
+        const createUserBtn = document.getElementById('create-user-btn');
+        
+        const checkinModal = document.getElementById('checkin-modal');
+        const closeModalBtn = document.getElementById('close-modal-btn');
+        const checkinUserName = document.getElementById('checkin-user-name');
+        const submitCheckinBtn = document.getElementById('submit-checkin-btn');
+        
+        const buddhaCounterModal = document.getElementById('buddha-counter-modal');
+        const closeBuddhaModalBtn = document.getElementById('close-buddha-modal-btn');
+        const totalBuddhaCountEl = document.getElementById('total-buddha-count');
+        const buddhaCounterInput = document.getElementById('buddha-counter-input');
+        const submitBuddhaCountBtn = document.getElementById('submit-buddha-count-btn');
+        
+        const toast = document.getElementById('toast');
+        const toastMessage = document.getElementById('toast-message');
+
+        // 初始化
+        console.log('Initializing app...');
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('DOM loaded, starting initialization...');
+            initializeApp();
+        });
+
+        function initializeApp() {
+            console.log('Loading data...');
+            loadData();
+            setCurrentDate();
+            renderRanking();
+            bindEvents();
+            console.log('App initialized successfully!');
+        }
+
+        // 设置当前日期
+        function setCurrentDate() {
+            const now = new Date();
+            const options = { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' };
+            currentDateEl.textContent = now.toLocaleDateString('zh-CN', options);
+        }
+
+        // 加载数据 - 支持Firebase和本地存储双重机制
+        function loadData() {
+            try {
+                // 先尝试从本地存储加载数据（确保离线可用）
+                const localUsers = localStorage.getItem('buddhistUsers');
+                if (localUsers) {
+                    users = JSON.parse(localUsers);
+                    console.log('Loaded users from localStorage:', users);
+                    renderRanking();
+                }
+
+                // 如果Firebase可用，从Firebase加载数据
+                if (database) {
+                    try {
+                        const usersRef = database.ref('users');
+                        
+                        // 监听数据变化
+                        usersRef.on('value', (snapshot) => {
+                            const usersData = snapshot.val();
+                            if (usersData) {
+                                // 将对象转换为数组
+                                users = Object.keys(usersData).map(key => ({
+                                    id: key,
+                                    ...usersData[key]
+                                }));
+                                console.log('Loaded users from Firebase:', users);
+                                
+                                // 同步到本地存储
+                                localStorage.setItem('buddhistUsers', JSON.stringify(users));
+                                
+                                // 如果当前用户已登录，更新其数据
+                                if (currentUser) {
+                                    const updatedUser = users.find(u => u.id === currentUser.id);
+                                    if (updatedUser) {
+                                        currentUser = updatedUser;
+                                    }
+                                }
+                                
+                                // 重新渲染排行榜
+                                renderRanking();
+                            } else {
+                                console.log('No users found in Firebase');
+                                // 如果Firebase没有数据但本地有，上传到Firebase
+                                if (users.length > 0) {
+                                    saveUsers();
+                                }
+                            }
+                        });
+                    } catch (firebaseError) {
+                        console.warn('Firebase data loading failed, using localStorage:', firebaseError);
+                    }
+                }
+
+                // 加载当前用户（从localStorage，因为这是设备特定的）
+                const savedCurrentUser = localStorage.getItem('currentBuddhistUser');
+                if (savedCurrentUser) {
+                    currentUser = JSON.parse(savedCurrentUser);
+                    console.log('Current user from localStorage:', currentUser);
+                    updateUserInfoDisplay();
+                }
+
+                // 检查并重置每日打卡数据
+                checkAndResetDailyData();
+                
+            } catch (error) {
+                console.error('Error loading data:', error);
+                showToast('数据加载失败，请刷新页面重试');
+            }
+        }
+
+        // 检查并重置每日打卡数据
+        function checkAndResetDailyData() {
+            const today = new Date().toDateString();
+            const lastResetDate = localStorage.getItem('lastResetDate');
+            
+            if (lastResetDate !== today) {
+                console.log('Resetting daily data for new day');
+                users.forEach(user => {
+                    user.dailyCheckins = {
+                        amitabha: 0,
+                        dizang: 0,
+                        pumen: 0,
+                        xinjing: 0,
+                        buddha: 0
+                    };
+                });
+                saveUsers();
+                localStorage.setItem('lastResetDate', today);
+            }
+        }
+
+        // 保存用户数据到Firebase
+        function saveUsers() {
+            try {
+                // 将用户数据保存到Firebase
+                const usersRef = database.ref('users');
+                const usersObject = {};
+                users.forEach(user => {
+                    usersObject[user.id] = user;
+                });
+                usersRef.set(usersObject);
+                console.log('Users saved to Firebase successfully');
+            } catch (error) {
+                console.error('Error saving users to Firebase:', error);
+                showToast('数据保存失败，请检查网络连接');
+            }
+        }
+
+        // 保存当前用户
+        function saveCurrentUser() {
+            try {
+                if (currentUser) {
+                    localStorage.setItem('currentBuddhistUser', JSON.stringify(currentUser));
+                } else {
+                    localStorage.removeItem('currentBuddhistUser');
+                }
+            } catch (error) {
+                console.error('Error saving current user:', error);
+            }
+        }
+
+        // 更新用户信息显示
+        function updateUserInfoDisplay() {
+            if (currentUser) {
+                currentUserNameEl.textContent = currentUser.name;
+                logoutBtn.style.display = 'inline-block';
+            } else {
+                currentUserNameEl.textContent = '请登录';
+                logoutBtn.style.display = 'none';
+            }
+        }
+
+        // 绑定事件
+        function bindEvents() {
+            console.log('Binding events...');
+            
+            // 确保DOM元素存在
+            if (!currentUserNameEl || !logoutBtn || !dailyRankingBtn || !totalRankingBtn || 
+                !refreshRankingBtn || !loadMoreBtn || !buddhaCounterBtn) {
+                console.error('Some DOM elements are missing');
+                return;
+            }
+            
+            // 登录相关事件
+            currentUserNameEl.addEventListener('click', openLoginModal);
+            logoutBtn.addEventListener('click', handleLogout);
+            
+            // 排行榜切换
+            dailyRankingBtn.addEventListener('click', () => switchRanking('daily'));
+            totalRankingBtn.addEventListener('click', () => switchRanking('total'));
+            
+            // 刷新按钮
+            refreshRankingBtn.addEventListener('click', refreshRanking);
+            
+            // 加载更多
+            loadMoreBtn.addEventListener('click', loadMore);
+            
+            // 累积佛号按钮
+            buddhaCounterBtn.addEventListener('click', openBuddhaCounterModal);
+            
+            // 快速经文打卡按钮
+            const quickCheckinBtn = document.getElementById('quick-checkin-btn');
+            if (quickCheckinBtn) {
+                quickCheckinBtn.addEventListener('click', function() {
+                    if (!currentUser) {
+                        showToast('请先登录');
+                        openLoginModal();
+                        return;
+                    }
+                    openCheckinModal(currentUser.id, false);
+                });
+            }
+            
+            // 登录模态框
+            if (closeLoginModalBtn) closeLoginModalBtn.addEventListener('click', closeLoginModal);
+            if (loginSubmitBtn) loginSubmitBtn.addEventListener('click', handleLogin);
+            if (createUserBtn) createUserBtn.addEventListener('click', createNewUser);
+            if (userNameInput) {
+                userNameInput.addEventListener('keypress', (e) => {
+                    if (e.key === 'Enter') {
+                        handleLogin();
+                    }
+                });
+            }
+            
+            // 点击登录模态框外部关闭
+            if (loginModal) {
+                loginModal.addEventListener('click', (e) => {
+                    if (e.target === loginModal) {
+                        closeLoginModal();
+                    }
+                });
+            }
+            
+            // 打卡模态框
+            if (closeModalBtn) closeModalBtn.addEventListener('click', closeModal);
+            if (submitCheckinBtn) submitCheckinBtn.addEventListener('click', submitCheckin);
+            
+            // 点击打卡模态框外部关闭
+            if (checkinModal) {
+                checkinModal.addEventListener('click', (e) => {
+                    if (e.target === checkinModal) {
+                        closeModal();
+                    }
+                });
+            }
+            
+            // 累积佛号模态框
+            if (closeBuddhaModalBtn) closeBuddhaModalBtn.addEventListener('click', closeBuddhaCounterModal);
+            if (submitBuddhaCountBtn) submitBuddhaCountBtn.addEventListener('click', submitBuddhaCount);
+            
+            // 点击累积佛号模态框外部关闭
+            if (buddhaCounterModal) {
+                buddhaCounterModal.addEventListener('click', (e) => {
+                    if (e.target === buddhaCounterModal) {
+                        closeBuddhaCounterModal();
+                    }
+                });
+            }
+            
+            console.log('Events bound successfully!');
+        }
+
+        // 显示 Toast
+        function showToast(message, duration = 3000) {
+            toastMessage.textContent = message;
+            toast.classList.remove('translate-y-20', 'opacity-0');
+            toast.classList.add('translate-y-0', 'opacity-100');
+            
+            setTimeout(() => {
+                toast.classList.remove('translate-y-0', 'opacity-100');
+                toast.classList.add('translate-y-20', 'opacity-0');
+            }, duration);
+        }
+
+        // 切换排行榜类型
+        function switchRanking(type) {
+            console.log('Switching ranking to:', type);
+            currentRankingType = type;
+            currentPage = 1;
+            
+            if (type === 'daily') {
+                dailyRankingBtn.classList.remove('bg-white', 'text-primary');
+                dailyRankingBtn.classList.add('bg-primary', 'text-white');
+                totalRankingBtn.classList.remove('bg-primary', 'text-white');
+                totalRankingBtn.classList.add('bg-white', 'text-primary');
+                rankingTitle.textContent = '今日修行排行榜';
+            } else {
+                totalRankingBtn.classList.remove('bg-white', 'text-primary');
+                totalRankingBtn.classList.add('bg-primary', 'text-white');
+                dailyRankingBtn.classList.remove('bg-primary', 'text-white');
+                dailyRankingBtn.classList.add('bg-white', 'text-primary');
+                rankingTitle.textContent = '累计修行排行榜';
+            }
+            
+            renderRanking();
+        }
+
+        // 渲染排行榜
+        function renderRanking() {
+            console.log('Rendering ranking, type:', currentRankingType, 'page:', currentPage);
+            
+            // 根据排行榜类型获取数据
+            const rankingData = users.map(user => {
+                const checkins = currentRankingType === 'daily' ? user.dailyCheckins : user.totalCheckins;
+                const total = checkins.amitabha + checkins.dizang + checkins.pumen + checkins.xinjing + checkins.buddha;
+                
+                return {
+                    ...user,
+                    checkins,
+                    total
+                };
+            }).filter(user => user.total > 0)
+              .sort((a, b) => b.total - a.total);
+            
+            // 分页
+            const startIndex = (currentPage - 1) * itemsPerPage;
+            const endIndex = startIndex + itemsPerPage;
+            const paginatedData = rankingData.slice(startIndex, endIndex);
+            
+            // 渲染表格
+            if (paginatedData.length === 0) {
+                rankingBody.innerHTML = `
+                    <tr>
+                        <td colspan="9" class="px-4 py-8 text-center text-gray-500">
+                            <i class="fa fa-info-circle mr-2"></i>暂无修行记录
+                        </td>
+                    </tr>
+                `;
+            } else {
+                rankingBody.innerHTML = paginatedData.map((user, index) => {
+                    const rank = startIndex + index + 1;
+                    const isCurrentUser = currentUser && user.id === currentUser.id;
+                    
+                    return `
+                        <tr class="${isCurrentUser ? 'bg-secondary bg-opacity-20' : ''} hover:bg-gray-50 transition-colors">
+                            <td class="px-4 py-3 font-semibold ${rank <= 3 ? 'text-primary' : 'text-gray-700'}">
+                                ${rank === 1 ? '<i class="fa fa-trophy text-yellow-500 mr-1"></i>' : ''}
+                                ${rank === 2 ? '<i class="fa fa-trophy text-gray-400 mr-1"></i>' : ''}
+                                ${rank === 3 ? '<i class="fa fa-trophy text-yellow-700 mr-1"></i>' : ''}
+                                ${rank}
+                            </td>
+                            <td class="px-4 py-3 font-medium ${isCurrentUser ? 'text-primary' : 'text-gray-800'}">${user.name}</td>
+                            <td class="px-4 py-3 text-center">${user.checkins.amitabha}</td>
+                            <td class="px-4 py-3 text-center">${user.checkins.dizang}</td>
+                            <td class="px-4 py-3 text-center">${user.checkins.pumen}</td>
+                            <td class="px-4 py-3 text-center">${user.checkins.xinjing}</td>
+                            <td class="px-4 py-3 text-center">${user.checkins.buddha}</td>
+                            <td class="px-4 py-3 font-semibold text-primary text-center">${user.total}</td>
+                            <td class="px-4 py-3 text-center">
+                                ${isCurrentUser ? `
+                                    <div class="flex space-x-2 justify-center">
+                                        <button class="edit-btn px-3 py-1 bg-secondary text-white rounded hover:bg-opacity-90 transition-colors btn" data-user-id="${user.id}">
+                                            <i class="fa fa-edit mr-1"></i>修改
+                                        </button>
+                                        <button class="checkin-btn px-3 py-1 bg-primary text-white rounded hover:bg-opacity-90 transition-colors btn" data-user-id="${user.id}">
+                                            <i class="fa fa-plus-circle mr-1"></i>打卡
+                                        </button>
+                                    </div>
+                                ` : `
+                                    <span class="text-gray-400">—</span>
+                                `}
+                            </td>
+                        </tr>
+                    `;
+                }).join('');
+                
+                // 重新绑定按钮事件
+                setTimeout(() => {
+                    document.querySelectorAll('.checkin-btn').forEach(btn => {
+                        btn.addEventListener('click', () => {
+                            const userId = btn.dataset.userId;
+                            openCheckinModal(userId, false);
+                        });
+                    });
+                    
+                    document.querySelectorAll('.edit-btn').forEach(btn => {
+                        btn.addEventListener('click', () => {
+                            const userId = btn.dataset.userId;
+                            openCheckinModal(userId, true);
+                        });
+                    });
+                }, 100);
+            }
+            
+            // 更新加载更多按钮状态
+            loadMoreBtn.style.display = endIndex < rankingData.length ? 'inline-block' : 'none';
+            
+            // 更新累积佛号显示
+            if (totalBuddhaCountEl) {
+                const totalBuddha = users.reduce((sum, user) => sum + user.totalCheckins.buddha, 0);
+                totalBuddhaCountEl.textContent = totalBuddha;
+            }
+        }
+
+        // 刷新排行榜
+        function refreshRanking() {
+            console.log('Refreshing ranking...');
+            currentPage = 1;
+            renderRanking();
+            showToast('排行榜已刷新');
+        }
+
+        // 加载更多
+        function loadMore() {
+            console.log('Loading more data...');
+            currentPage++;
+            renderRanking();
+        }
+
+        // 打开登录模态框
+        function openLoginModal() {
+            console.log('Opening login modal...');
+            userNameInput.value = '';
+            userNameInput.focus();
+            loginModal.style.display = 'block';
+        }
+
+        // 关闭登录模态框
+        function closeLoginModal() {
+            loginModal.style.display = 'none';
+        }
+
+        // 处理登录
+        function handleLogin() {
+            const userName = userNameInput.value.trim();
+            if (!userName) {
+                showToast('请输入修行名称');
+                userNameInput.focus();
+                return;
+            }
+            
+            console.log('Trying to login with username:', userName);
+            console.log('Current users list:', users.map(u => u.name));
+            
+            const user = users.find(u => u.name === userName);
+            if (user) {
+                currentUser = user;
+                saveCurrentUser();
+                updateUserInfoDisplay();
+                closeLoginModal();
+                showToast(`欢迎回来，${user.name}`);
+                console.log('User logged in successfully:', user);
+            } else {
+                showToast('用户不存在，请先创建');
+                console.log('User not found:', userName);
+            }
+        }
+
+        // 创建新用户
+        function createNewUser() {
+            const userName = userNameInput.value.trim();
+            if (!userName) {
+                showToast('请输入修行名称');
+                userNameInput.focus();
+                return;
+            }
+            
+            if (users.some(u => u.name === userName)) {
+                showToast('该用户已存在');
+                return;
+            }
+            
+            const newUser = {
+                id: Date.now().toString(),
+                name: userName,
+                dailyCheckins: {
+                    amitabha: 0,
+                    dizang: 0,
+                    pumen: 0,
+                    xinjing: 0,
+                    buddha: 0
+                },
+                totalCheckins: {
+                    amitabha: 0,
+                    dizang: 0,
+                    pumen: 0,
+                    xinjing: 0,
+                    buddha: 0
+                },
+                totalDays: 0,
+                createdAt: new Date().toISOString()
+            };
+            
+            users.push(newUser);
+            saveUsers();
+            
+            currentUser = newUser;
+            saveCurrentUser();
+            updateUserInfoDisplay();
+            closeLoginModal();
+            showToast(`欢迎加入，${newUser.name}`);
+            console.log('New user created:', newUser);
+            
+            // 刷新排行榜以显示新用户
+            renderRanking();
+        }
+
+        // 处理登出
+        function handleLogout() {
+            currentUser = null;
+            saveCurrentUser();
+            updateUserInfoDisplay();
+            showToast('已登出');
+            console.log('User logged out');
+        }
+
+        // 打开打卡模态框
+        function openCheckinModal(userId, isEdit = false) {
+            if (!currentUser || currentUser.id !== userId) {
+                showToast('只能为自己打卡');
+                return;
+            }
+            
+            checkinUserName.textContent = `为 ${currentUser.name} ${isEdit ? '修改打卡' : '打卡'}`;
+            submitCheckinBtn.innerHTML = isEdit ? 
+                '<i class="fa fa-save mr-2"></i>保存修改' : 
+                '<i class="fa fa-check mr-2"></i>确认打卡';
+            
+            // 设置输入框值
+            if (isEdit) {
+                document.getElementById('amitabha-count').value = currentUser.dailyCheckins.amitabha;
+                document.getElementById('dizang-count').value = currentUser.dailyCheckins.dizang;
+                document.getElementById('pumen-count').value = currentUser.dailyCheckins.pumen;
+                document.getElementById('xinjing-count').value = currentUser.dailyCheckins.xinjing;
+                document.getElementById('buddha-count').value = currentUser.dailyCheckins.buddha;
+            } else {
+                document.getElementById('amitabha-count').value = '0';
+                document.getElementById('dizang-count').value = '0';
+                document.getElementById('pumen-count').value = '0';
+                document.getElementById('xinjing-count').value = '0';
+                document.getElementById('buddha-count').value = '0';
+            }
+            
+            // 存储当前操作类型
+            checkinModal.dataset.isEdit = isEdit;
+            
+            checkinModal.style.display = 'block';
+        }
+
+        // 关闭打卡模态框
+        function closeModal() {
+            checkinModal.style.display = 'none';
+        }
+
+        // 更新打卡数量
+        function updateCount(type, change) {
+            const input = document.getElementById(`${type}-count`);
+            let value = parseInt(input.value) || 0;
+            value = Math.max(0, value + change);
+            input.value = value;
+        }
+
+        // 提交打卡
+        function submitCheckin() {
+            if (!currentUser) {
+                showToast('请先登录');
+                return;
+            }
+            
+            const amitabha = parseInt(document.getElementById('amitabha-count').value) || 0;
+            const dizang = parseInt(document.getElementById('dizang-count').value) || 0;
+            const pumen = parseInt(document.getElementById('pumen-count').value) || 0;
+            const xinjing = parseInt(document.getElementById('xinjing-count').value) || 0;
+            const buddha = parseInt(document.getElementById('buddha-count').value) || 0;
+            
+            if (amitabha === 0 && dizang === 0 && pumen === 0 && xinjing === 0 && buddha === 0) {
+                showToast('请至少选择一项进行打卡');
+                return;
+            }
+            
+            const isEdit = checkinModal.dataset.isEdit === 'true';
+            
+            if (isEdit) {
+                // 修改模式：先减去之前的数量，再加上新的数量
+                const oldAmitabha = currentUser.dailyCheckins.amitabha;
+                const oldDizang = currentUser.dailyCheckins.dizang;
+                const oldPumen = currentUser.dailyCheckins.pumen;
+                const oldXinjing = currentUser.dailyCheckins.xinjing;
+                const oldBuddha = currentUser.dailyCheckins.buddha;
+                
+                // 从总打卡中减去旧的数量
+                currentUser.totalCheckins.amitabha -= oldAmitabha;
+                currentUser.totalCheckins.dizang -= oldDizang;
+                currentUser.totalCheckins.pumen -= oldPumen;
+                currentUser.totalCheckins.xinjing -= oldXinjing;
+                currentUser.totalCheckins.buddha -= oldBuddha;
+                
+                // 设置新的每日打卡数量
+                currentUser.dailyCheckins.amitabha = amitabha;
+                currentUser.dailyCheckins.dizang = dizang;
+                currentUser.dailyCheckins.pumen = pumen;
+                currentUser.dailyCheckins.xinjing = xinjing;
+                currentUser.dailyCheckins.buddha = buddha;
+                
+                // 加上新的数量到总打卡
+                currentUser.totalCheckins.amitabha += amitabha;
+                currentUser.totalCheckins.dizang += dizang;
+                currentUser.totalCheckins.pumen += pumen;
+                currentUser.totalCheckins.xinjing += xinjing;
+                currentUser.totalCheckins.buddha += buddha;
+                
+                showToast('打卡修改成功！');
+                console.log('Checkin edited:', { amitabha, dizang, pumen, xinjing, buddha });
+            } else {
+                // 新增模式：直接加上新的数量
+                currentUser.dailyCheckins.amitabha += amitabha;
+                currentUser.dailyCheckins.dizang += dizang;
+                currentUser.dailyCheckins.pumen += pumen;
+                currentUser.dailyCheckins.xinjing += xinjing;
+                currentUser.dailyCheckins.buddha += buddha;
+                
+                currentUser.totalCheckins.amitabha += amitabha;
+                currentUser.totalCheckins.dizang += dizang;
+                currentUser.totalCheckins.pumen += pumen;
+                currentUser.totalCheckins.xinjing += xinjing;
+                currentUser.totalCheckins.buddha += buddha;
+                
+                // 更新总天数（如果今天是第一次打卡）
+                const todayTotal = currentUser.dailyCheckins.amitabha + currentUser.dailyCheckins.dizang + 
+                                  currentUser.dailyCheckins.pumen + currentUser.dailyCheckins.xinjing + 
+                                  currentUser.dailyCheckins.buddha;
+                if (todayTotal === amitabha + dizang + pumen + xinjing + buddha) {
+                    currentUser.totalDays++;
+                }
+                
+                showToast('打卡成功，功德无量！');
+                console.log('Checkin submitted:', { amitabha, dizang, pumen, xinjing, buddha });
+            }
+            
+            saveUsers();
+            closeModal();
+            
+            // 刷新排行榜
+            renderRanking();
+        }
+
+        // 打开累积佛号模态框
+        function openBuddhaCounterModal() {
+            if (!currentUser) {
+                showToast('请先登录');
+                openLoginModal();
+                return;
+            }
+            
+            const totalBuddha = users.reduce((sum, user) => sum + user.totalCheckins.buddha, 0);
+            totalBuddhaCountEl.textContent = totalBuddha;
+            buddhaCounterInput.value = '0';
+            buddhaCounterModal.style.display = 'block';
+        }
+
+        // 关闭累积佛号模态框
+        function closeBuddhaCounterModal() {
+            buddhaCounterModal.style.display = 'none';
+        }
+
+        // 更新佛号数量
+        function updateBuddhaCount(change) {
+            let value = parseInt(buddhaCounterInput.value) || 0;
+            value = Math.max(0, value + change);
+            buddhaCounterInput.value = value;
+        }
+
+        // 提交佛号
+        function submitBuddhaCount() {
+            if (!currentUser) {
+                showToast('请先登录');
+                return;
+            }
+            
+            const count = parseInt(buddhaCounterInput.value) || 0;
+            if (count <= 0) {
+                showToast('请输入有效的佛号数量');
+                return;
+            }
+            
+            // 更新每日和总佛号数
+            currentUser.dailyCheckins.buddha += count;
+            currentUser.totalCheckins.buddha += count;
+            
+            // 更新总天数（如果今天是第一次打卡）
+            const todayTotal = currentUser.dailyCheckins.amitabha + currentUser.dailyCheckins.dizang + 
+                              currentUser.dailyCheckins.pumen + currentUser.dailyCheckins.xinjing + 
+                              currentUser.dailyCheckins.buddha;
+            if (todayTotal === count) {
+                currentUser.totalDays++;
+            }
+            
+            saveUsers();
+            closeBuddhaCounterModal();
+            showToast(`已添加 ${count} 声佛号，功德无量！`);
+            console.log('Buddha count submitted:', count);
+            
+            // 刷新排行榜
+            renderRanking();
+        }
+
+        // 页面加载完成后初始化
+        console.log('App script loaded');
+    </script>
+
+</body>
+</html>
